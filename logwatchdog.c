@@ -2,7 +2,7 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-//#include <errno.h>
+#include <errno.h>
 #include <unistd.h>
 #include <syslog.h>
 #include <string.h>
@@ -17,7 +17,6 @@ const char* TMPDIR = "/tmp/mydir";
 const char* TMPFILE = "/tmp/mydir/cse";
 const char* UTMP = "var/run/utmp";
 const char* WTMP = "var/log/wtmp";
-char* terminal;
 int count = 0;
 FILE *logfile;
 
@@ -27,9 +26,6 @@ void writeLog();
 
 int main(){
     pid_t pid, sid;
-    if((terminal = ttyname(STDOUT_FILENO)) == NULL){
-        perror("ttyname() error\n");
-    }
     pid = fork();
     if( pid < 0){
         exit(EXIT_FAILURE);
