@@ -2,31 +2,34 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
+//#include <errno.h>
 #include <unistd.h>
 #include <syslog.h>
 #include <string.h>
 #include <signal.h>
 #include <time.h>
 #include <utmp.h>
+#include <fcntl.h>// O_WRONLY, O_NOCTTY
 
 #define KST 9
 #define MAXLOG 5
-const char* TMPDIR = "/tmp";
-const char* TMPFILE = "/tmp/cse";
+const char* TMPDIR = "/tmp/mydir";
+const char* TMPFILE = "/tmp/mydir/cse";
 const char* UTMP = "var/run/utmp";
 const char* WTMP = "var/log/wtmp";
+char* terminal;
 int count = 0;
 FILE *logfile;
 
 void writelog(char* message);
 void check();
-void test(struct utmp *log);
+void writeLog();
 
 int main(){
     pid_t pid, sid;
-    
+    if((terminal = ttyname(STDOUT_FILENO)) == NULL){
+        perror("ttyname() error\n");
+    }
     pid = fork();
     if( pid < 0){
         exit(EXIT_FAILURE);
@@ -44,9 +47,10 @@ int main(){
     if((chdir("/"))<0){
         exit(EXIT_FAILURE);
     }
-    //close(STDIN_FILENO);
-    //close(STDOUT_FILENO);
-    //close(STDERR_FILENO);
+    
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
 
     signal(SIGTTIN, SIG_IGN); // Background Process Read
     signal(SIGTTOU, SIG_IGN); // Background Process Write
@@ -55,13 +59,29 @@ int main(){
     while(1){
         check();
         count++;
-        if(count==15){
+        if(count==5){
             count = 0;
-            // display
+            writeLog();
         }
         sleep(2);
     }
     return 0;
+}
+
+void writeLog(){
+    FILE* mytemp;
+    char* buffer;
+    long filesize;
+    mytemp = fopen(TMPFILE,"r");
+    fseek(mytemp, 0, SEEK_END);
+    filesize = ftell(mytemp);
+    rewind(mytemp);
+    
+    buffer = (char*) malloc((filesize)*sizeof(char));
+    fread(buffer,filesize,1,mytemp);
+    openlog("logwatchdog", LOG_PID|LOG_CONS, LOG_USER);
+    syslog(LOG_INFO, "%s", buffer);
+    fclose(mytemp);
 }
 
 void check(){
@@ -123,18 +143,3 @@ void check(){
     fclose(logfile);
 }
 
-void test(struct utmp *log){
-    //printf("{ut_type: %i, utPid: %i, ut_line: %s, ut_id: %s, ut_user: %s, ut_host: %s, ut_exit: { e_termination: %d, e_exit: %d}, ut_session : %i, timeval: {tv_sec :%i, tv_usec: %i}, ut_addr_v6: %d}\n\n", log->ut_type, log->ut_pid, log->ut_line, log->ut_id, log->ut_user, log->ut_host, log->ut_exit.e_termination, log->ut_exit.e_exit, log->ut_session, log->ut_tv.tv_sec,log->ut_tv.tv_usec, log->ut_addr_v6);
-}
-
-void writelog(char* message){
-    time_t t;
-    struct tm *info;
-    char buffer[1024];
-    time(&t);
-    info = gmtime(&t);
-    info->tm_hour = (info->tm_hour + KST) % 24;
-    strftime(buffer, 15, "[%I:%M:%S %p] ",info);
-    //strcat(buffer, message);
-    fwrite(buffer,sizeof(buffer),sizeof(char), logfile);
-}
